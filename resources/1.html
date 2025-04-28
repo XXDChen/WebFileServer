@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>WebFileServer</title>
+        <style>
+            .upload-container {
+                text-align: center;
+                margin: 20px;
+            }
+            .file-input {
+                margin: 10px 0;
+            }
+            .upload-btn {
+                padding: 8px 20px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .upload-btn:hover {
+                background-color: #45a049;
+            }
+            .file-list {
+                margin: 20px auto;
+                width: 80%;
+                max-width: 600px;
+            }
+            .file-list table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .file-list th, .file-list td {
+                padding: 8px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+            }
+            .file-list th {
+                background-color: #f2f2f2;
+            }
+            .file-list tr:hover {
+                background-color: #f5f5f5;
+            }
+            .file-content {
+                margin: 20px auto;
+                width: 80%;
+                max-width: 800px;
+                padding: 20px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                display: none;
+            }
+            .file-content img {
+                max-width: 100%;
+                height: auto;
+            }
+            .file-content pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .close-btn {
+                float: right;
+                cursor: pointer;
+                color: #666;
+            }
+            .close-btn:hover {
+                color: #333;
+            }
+            .delete-btn {
+                padding: 4px 8px;
+                background-color: #ff4444;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-left: 10px;
+            }
+            .delete-btn:hover {
+                background-color: #cc0000;
+            }
+        </style>
+    </head>
+    <body>
+        <br/>
+        <br/>
+        <div align="center"><font size="5"> <strong>欢迎访问</strong></font></div>
+        <br/>
+        <div class="upload-container">
+            <form id="uploadForm" action="/file" method="post" enctype="multipart/form-data">
+                <div class="file-input">
+                    <input type="file" name="file" id="file" required>
+                </div>
+                <div>
+                    <button type="submit" class="upload-btn">上传文件</button>
+                </div>
+            </form>
+        </div>
+        <div class="file-list">
+            <h3 align="center">文件列表</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="fileListBody">
+                    <!-- 文件列表将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+        </div>
+        <div id="fileContent" class="file-content">
+            <span class="close-btn" onclick="closeFileContent()">×</span>
+            <div id="contentDisplay"></div>
+        </div>
+        <script>
+            // 获取文件列表
+            function getFileList() {
+                fetch('/file/list')
+                    .then(response => response.text())
+                    .then(text => {
+                        const filenames = text.split('\n').filter(name => name.trim() !== '');
+                        const tbody = document.getElementById('fileListBody');
+                        tbody.innerHTML = '';
+                        filenames.forEach(filename => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td><a href="#" onclick="showFileContent('${filename}')">${filename}</a></td>
+                                <td><button class="delete-btn" onclick="deleteFile('${filename}')">删除</button></td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+            // 显示文件内容
+            function showFileContent(filename) {
+                const fileContent = document.getElementById('fileContent');
+                const contentDisplay = document.getElementById('contentDisplay');
+                
+                // 根据文件扩展名决定显示方式
+                const ext = filename.split('.').pop().toLowerCase();
+                const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                const textExts = ['txt', 'html', 'css', 'js', 'json', 'xml', 'cpp', 'c'];
+                
+                // 对文件名进行URL编码
+                const encodedFilename = encodeURIComponent(filename);
+                
+                fetch(`/file/${encodedFilename}`)
+                    .then(response => {
+                        if (!response.ok) throw new Error('文件获取失败');
+                        if (imageExts.includes(ext)) {
+                            return response.blob().then(blob => {
+                                const url = URL.createObjectURL(blob);
+                                contentDisplay.innerHTML = `<img src="${url}" alt="${filename}">`;
+                            });
+                        } else if (textExts.includes(ext)) {
+                            return response.text().then(text => {
+                                contentDisplay.innerHTML = `<pre>${text}</pre>`;
+                            });
+                        } else {
+                            contentDisplay.innerHTML = '<p>不支持预览此类型文件</p>';
+                        }
+                    })
+                    .then(() => {
+                        fileContent.style.display = 'block';
+                    })
+                    .catch(error => {
+                        contentDisplay.innerHTML = `<p>${error.message}</p>`;
+                        fileContent.style.display = 'block';
+                    });
+            }
+
+            // 关闭文件内容显示
+            function closeFileContent() {
+                document.getElementById('fileContent').style.display = 'none';
+            }
+
+            // 删除文件
+            function deleteFile(filename) {
+                if (confirm(`确定要删除文件 ${filename} 吗？`)) {
+                    const encodedFilename = encodeURIComponent(filename);
+                    fetch(`/delete/file/${encodedFilename}`, {
+                        method: 'GET'
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            alert('文件删除成功！');
+                            getFileList(); // 刷新文件列表
+                        } else {
+                            alert('文件删除失败！');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('文件删除出错！');
+                    });
+                }
+            }
+            // 页面加载时获取文件列表
+            window.onload = getFileList;
+            // 处理表单提交
+            document.getElementById('uploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                fetch('/file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('文件上传成功！');
+                        getFileList();
+                        // 清空文件输入框
+                        document.getElementById('file').value = '';
+                    } else {
+                        alert('文件上传失败，请重试！');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('文件上传出错，请重试！');
+                });
+            });
+        </script>
+    </body>
+</html>
