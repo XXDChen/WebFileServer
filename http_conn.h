@@ -20,7 +20,7 @@ class http_conn{
 public:
     static int m_epollfd;   //所有socket事件注册到同一个epfd上
     static int m_user_count;
-    static const int READ_BUFSIZE = 1024 * 5;
+    static const int READ_BUFSIZE = 1024 * 1024 * 32;
     static const int WRITE_BUFSIZE = 1024;
     static const int FILENAME_LEN = 200;
     //HTTP请求方法
@@ -32,7 +32,12 @@ public:
     //报文解析的结果
     enum HTTP_CODE {NO_REQUEST, GET_REQUEST, BAD_REQUEST, NO_RESOURCE, FORBIDDEN_REQUEST, FILE_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION};
     http_conn(){}
-    ~http_conn(){}
+    ~http_conn(){
+        if(m_readbuf != nullptr) {
+            delete[] m_readbuf;
+            m_readbuf = nullptr;
+        }
+    }
     void process();     //处理客户端请求
     void init(int sockfd, sockaddr_in &addr);   //初始化连接
     void close_conn();    //关闭连接
@@ -42,8 +47,7 @@ public:
 private:
     int m_sockfd;
     sockaddr_in m_address;
-    char m_readbuf[READ_BUFSIZE];
-    char m_readbuf1[READ_BUFSIZE];
+    char *m_readbuf;    // 改为指针
     int m_readidx;    //读位置
     char m_writebuf[WRITE_BUFSIZE];
     int m_writeidx;    //写位置
@@ -63,6 +67,7 @@ private:
     bool m_linger;      //是否保持连接
     METHOD m_method;    //请求方法
     int m_content_length;  //请求体长度
+    char *m_boundary;    //请求体边界
 
     void init();    //初始化其他信息
     HTTP_CODE process_read();   //解析HTTP请求

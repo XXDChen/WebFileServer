@@ -49,11 +49,11 @@ void http_conn::init(){
     m_content_length = 0;
     m_method = GET;
     m_url = 0;
+    m_boundary = 0;
     m_host = 0;
     m_version = 0;
     m_linger = false;
-    bzero(m_readbuf, READ_BUFSIZE);
-    bzero(m_readbuf1, READ_BUFSIZE);
+    m_readbuf = new char[READ_BUFSIZE]();  // 使用new分配内存并初始化为0
     bzero(m_writebuf, WRITE_BUFSIZE);
     bzero(m_realfile, FILENAME_LEN);
 }
@@ -92,7 +92,6 @@ bool http_conn::read(){
             return false;
         } 
         printf("fd :%d读位置:%d读取到数据：%s\n", m_sockfd, m_readidx, m_readbuf+m_readidx);
-        memcpy(m_readbuf1 + m_readidx, m_readbuf + m_readidx, byte_read);
         m_readidx += byte_read;
     }
     return true;
@@ -180,7 +179,12 @@ http_conn::HTTP_CODE http_conn::parse_headers(char* text){
         text += 5;
         text += strspn(text, " \t");
         m_host = text;
-    } else{
+    } else if(strncasecmp(text, "Content-Type: multipart/form-data;", 34) == 0){
+        //m_boundary = strstr(text, "boundary=");
+        m_boundary = text;
+        m_boundary += 44;
+    }
+    else{
         //printf("unknown headr %s \n", text);
     }
     return NO_REQUEST;
@@ -198,32 +202,12 @@ http_conn::HTTP_CODE http_conn::parse_content(char* text){
 http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
     // 处理文件上传请求
     if (strcmp(m_url, "/file") == 0 && m_method == POST) {
-        // 解析multipart/form-data边界
-        char* content_type = strstr(m_readbuf1, "Content-Type: multipart/form-data");
-        if (!content_type) {
-            printf("未找到Content-Type\n");
-            return BAD_REQUEST;
-        }
-        // 查找边界字符串
-        char* boundary_start = strstr(content_type, "boundary=");
-        if (!boundary_start) {
+        if (!m_boundary) {
             printf("未找到boundary\n");
             return BAD_REQUEST;
         }
-        boundary_start += 9; // 跳过 "boundary="
-        // 构造完整的边界字符串
-        char boundary[100];
-        char* boundary_end = strchr(boundary_start, '\r');
-        if (!boundary_end) {
-            printf("未找到boundary结束标记\n");
-            return BAD_REQUEST;
-        }
-        int len = boundary_end-boundary_start;
-        snprintf(boundary, sizeof(boundary), "--%s", boundary_start);
-        boundary[len + 2]='\0';
-        // 查找文件部分的开始
-        printf("边界：%s\n", boundary);
-        char* file_part_start = strstr(m_readbuf1, boundary);
+        printf("边界：%s\n", m_boundary);
+        char* file_part_start = strstr(m_readbuf + m_checkedidx, m_boundary);
         if (!file_part_start) {
             printf("未找到文件部分开始\n");
             return BAD_REQUEST;
@@ -243,7 +227,7 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
         // 构建文件路径
         char filepath[FILENAME_LEN];
         snprintf(filepath, FILENAME_LEN, "/home/ubuntu/cxd/webserver/resources/file/%s", filename_start);
-        len = filename_end - filename_start;
+        int len = filename_end - filename_start;
         filepath[len + 42] = '\0';
         printf("文件路径: %s\n", filepath);
         // 查找文件内容的开始位置
@@ -254,9 +238,9 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
         }
         content_start += 4; // 跳过 \r\n\r\n
         // 查找文件内容的结束位置
-        char* content_end = strstr(content_start, boundary);
+        char* content_end = strstr(content_start, m_boundary);
         if (!content_end) {
-            content_end = m_readbuf1 + m_readidx;
+            content_end = m_readbuf + m_readidx;
         }
         printf("文件内容长度: %ld\n", content_end - content_start);
         // 写入文件
@@ -288,7 +272,7 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
     }
     // 处理文件列表请求
     if (strcmp(m_url, "/file/list") == 0) {
-        char file_list[READ_BUFSIZE] = "";
+        char file_list[WRITE_BUFSIZE] = "";
         int pos = 0;
         DIR* dir = opendir("/home/ubuntu/cxd/webserver/resources/file");
         if (dir) {
@@ -309,7 +293,7 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
         add_content(file_list);
         return FILE_REQUEST;
     }
-    //"/home/ubuntu/cxd/webserver/resources"
+    //// 处理文件请求"/home/ubuntu/cxd/webserver/resources"
     strcpy(m_realfile, doc_root);
     int len =strlen(doc_root);
     strncpy(m_realfile + len, m_url, FILENAME_LEN - len - 1);
@@ -520,5 +504,4 @@ void http_conn::process(){     //线程池工作线程调用，处理HTTP请求
        close_conn();
     }
     modfd(m_epollfd, m_sockfd, EPOLLOUT);
-    //printf("parse request, create response\n");
 }

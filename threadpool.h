@@ -36,7 +36,7 @@ threadpool<T>::threadpool(int thread_number, int max_requests) :
         throw std::exception();
     }
     for(int i = 0; i < thread_number; i++){
-        printf("create %d thread\n", i);
+        //printf("create %d thread\n", i);
         if(pthread_create(m_threads + i, NULL, worker, this) != 0){
             delete[] m_threads;
             throw std::exception();
