@@ -91,10 +91,6 @@ void connection_pool::DestroyPool(){
 	lock.unlock();
 }
 //当前空闲的连接数
-int connection_pool::GetFreeConn(){
-	return this->FreeConn;
-}
-
 connectionRAII::connectionRAII(MYSQL **SQL, connection_pool *connPool){
 	*SQL = connPool->GetConnection();
 	conRAII = *SQL;
