@@ -50,8 +50,13 @@
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 display: none;
+                position: relative;
             }
             .file-content img {
+                max-width: 100%;
+                height: auto;
+            }
+            .file-content video {
                 max-width: 100%;
                 height: auto;
             }
@@ -78,6 +83,32 @@
             }
             .delete-btn:hover {
                 background-color: #cc0000;
+            }
+            .download-btn {
+                padding: 4px 8px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-left: 10px;
+            }
+            .download-btn:hover {
+                background-color: #45a049;
+            }
+            .preview-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .preview-title {
+                font-weight: bold;
+                font-size: 16px;
+            }
+            .preview-actions {
+                display: flex;
+                gap: 10px;
             }
         </style>
     </head>
@@ -111,7 +142,13 @@
             </table>
         </div>
         <div id="fileContent" class="file-content">
-            <span class="close-btn" onclick="closeFileContent()">×</span>
+            <div class="preview-header">
+                <span class="preview-title" id="previewTitle"></span>
+                <div class="preview-actions">
+                    <button class="download-btn" id="previewDownloadBtn" style="display: none;">下载</button>
+                    <span class="close-btn" onclick="closeFileContent()">×</span>
+                </div>
+            </div>
             <div id="contentDisplay"></div>
         </div>
         <script>
@@ -138,25 +175,50 @@
             function showFileContent(filename) {
                 const fileContent = document.getElementById('fileContent');
                 const contentDisplay = document.getElementById('contentDisplay');
+                const previewTitle = document.getElementById('previewTitle');
+                const previewDownloadBtn = document.getElementById('previewDownloadBtn');
+                
+                previewTitle.textContent = filename;
+                previewDownloadBtn.style.display = 'block';
                 
                 // 根据文件扩展名决定显示方式
                 const ext = filename.split('.').pop().toLowerCase();
                 const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                 const textExts = ['txt', 'html', 'css', 'js', 'json', 'xml', 'cpp', 'c'];
-                
+                const videoExts = ['mp4', 'webm', 'ogg'];
                 // 对文件名进行URL编码
-                const encodedFilename = encodeURIComponent(filename);
-                
+                const encodedFilename = encodeURIComponent(filename);        
                 fetch(`/file/${encodedFilename}`)
                     .then(response => {
                         if (!response.ok) throw new Error('文件获取失败');
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        // 保存blob对象供下载使用
+                        previewDownloadBtn.onclick = function() {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        };
+
                         if (imageExts.includes(ext)) {
-                            return response.blob().then(blob => {
-                                const url = URL.createObjectURL(blob);
-                                contentDisplay.innerHTML = `<img src="${url}" alt="${filename}">`;
-                            });
+                            const url = URL.createObjectURL(blob);
+                            contentDisplay.innerHTML = `<img src="${url}" alt="${filename}">`;
+                        } else if (videoExts.includes(ext)) {
+                            const url = URL.createObjectURL(blob);
+                            contentDisplay.innerHTML = `
+                                <video controls>
+                                    <source src="${url}" type="video/${ext}">
+                                    您的浏览器不支持视频播放
+                                </video>
+                            `;
                         } else if (textExts.includes(ext)) {
-                            return response.text().then(text => {
+                            blob.text().then(text => {
                                 contentDisplay.innerHTML = `<pre>${text}</pre>`;
                             });
                         } else {
@@ -171,12 +233,10 @@
                         fileContent.style.display = 'block';
                     });
             }
-
             // 关闭文件内容显示
             function closeFileContent() {
                 document.getElementById('fileContent').style.display = 'none';
             }
-
             // 删除文件
             function deleteFile(filename) {
                 if (confirm(`确定要删除文件 ${filename} 吗？`)) {

@@ -15,14 +15,21 @@
 #include<stdarg.h>
 #include<fcntl.h>
 #include<string.h>
+#include<dirent.h>
+#include <sys/sendfile.h>
+#include <map>
+#include <mysql/mysql.h>
 #include "locker.h"
+#include "./sql/sql_connpool.h"
+
 class http_conn{
 public:
     static int m_epollfd;   //所有socket事件注册到同一个epfd上
     static int m_user_count;
-    static const int READ_BUFSIZE = 1024 * 1024 * 32;
+    static const int READ_BUFSIZE = 1024 * 4; //* 1024;
     static const int WRITE_BUFSIZE = 1024;
     static const int FILENAME_LEN = 200;
+    MYSQL *mysql;
     //HTTP请求方法
     enum METHOD {GET = 0, POST, HEAD, PUT, DELETE, TRACE, OPTIONS, CONNECT};
     //主状态机状态（分析请求行、请求报头、请求主体）
@@ -33,26 +40,26 @@ public:
     enum HTTP_CODE {NO_REQUEST, GET_REQUEST, BAD_REQUEST, NO_RESOURCE, FORBIDDEN_REQUEST, FILE_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION};
     http_conn(){}
     ~http_conn(){
-        if(m_readbuf != nullptr) {
-            delete[] m_readbuf;
-            m_readbuf = nullptr;
-        }
+        //if(m_readbuf != nullptr) {
+        //    delete[] m_readbuf;
+        //    m_readbuf = nullptr;
+        //}
     }
     void process();     //处理客户端请求
     void init(int sockfd, sockaddr_in &addr);   //初始化连接
     void close_conn();    //关闭连接
     bool read();    //非阻塞读
     bool write();   //非阻塞写、
+    void initmysql_result(connection_pool *connPool);
 
 private:
     int m_sockfd;
     sockaddr_in m_address;
-    char *m_readbuf;    // 改为指针
+    //char *m_readbuf;    // 改为指针
+    char m_readbuf[READ_BUFSIZE];
     int m_readidx;    //读位置
     char m_writebuf[WRITE_BUFSIZE];
     int m_writeidx;    //写位置
-    struct iovec m_iv[2];   //两块内存分散写
-    int m_iv_count;
     int byte_have_send;    // 已经发送的字节
     int byte_to_send;    //将要发送的字节
     int m_checkedidx;   //当前分析字符在读buf的位置
@@ -68,6 +75,11 @@ private:
     METHOD m_method;    //请求方法
     int m_content_length;  //请求体长度
     char *m_boundary;    //请求体边界
+    int tmpfd;      //临时文件
+    int tmplen;
+    int m_fd;     //请求文件fd
+    off_t m_offset; 
+    int m_len;
 
     void init();    //初始化其他信息
     HTTP_CODE process_read();   //解析HTTP请求
@@ -81,6 +93,7 @@ private:
     char * get_line(){return m_readbuf + m_startline;}  //获取行首字符
 
     void unmap();
+    void read_file(int fd1, int fd2);
     bool add_response(const char* format, ...);
     bool add_status_line(int status, const char* title);
     bool add_headers(int content_length);
