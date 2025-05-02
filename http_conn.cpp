@@ -83,7 +83,6 @@ void http_conn::init(){
     m_fd = -1;
     tmpfd = -1;
     tmplen = 0;
-    //m_content = 0;
     m_offset = 0;
     m_len = 0;
     //m_readbuf = new char[READ_BUFSIZE]();  // 使用new分配内存并初始化为0
@@ -138,18 +137,8 @@ void http_conn::read_file(int fd1, int fd2){
     }
     close(pfd[0]);
     close(pfd[1]);
-    // 完成，返回临时文件 fd
-    //return tmpfd;
 }
 bool http_conn::read(){
-    //if(m_readidx >= READ_BUFSIZE){
-    //    return false;
-    //}
-    //if(m_check_state == CHECK_STATE_CONTENT){ // strcmp(m_url, "/file") == 0 && m_method == POST){
-        //printf("读请求体\n");
-        //read_content();
-        //return true;
-    //}
     int byte_read = 0;
     while(1){
         if(m_readidx >= READ_BUFSIZE){
@@ -442,12 +431,6 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
     m_fd = open(m_realfile, O_RDONLY);
     m_len = m_filestat.st_size;
     return FILE_REQUEST;
-}
-void http_conn::unmap() {
-    if(m_fileaddr){
-        munmap(m_fileaddr, m_filestat.st_size);
-        m_fileaddr = 0;
-    }
 }
 http_conn::HTTP_CODE http_conn::process_read(){    //主状态机
     LINE_STATUS line_status = LINE_OK;

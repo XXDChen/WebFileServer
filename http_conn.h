@@ -7,7 +7,6 @@
 #include<unistd.h>
 #include<signal.h>
 #include<sys/types.h>
-#include<sys/mman.h>
 #include<sys/stat.h>
 #include<sys/uio.h>
 #include<stdarg.h>
@@ -92,7 +91,6 @@ private:
     LINE_STATUS parse_line();   //从状态机解析单行
     char * get_line(){return m_readbuf + m_startline;}  //获取行首字符
 
-    void unmap();
     void read_file(int fd1, int fd2);
     bool add_response(const char* format, ...);
     bool add_status_line(int status, const char* title);

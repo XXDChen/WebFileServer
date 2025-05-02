@@ -22,11 +22,6 @@ connection_pool *connection_pool::GetInstance(){
 }
 //构造初始化
 void connection_pool::init(const char* url, const char* User, const char* PassWord, const char* DBName, int Port, int MaxConn){
-	//this->url = url;
-	//this->Port = Port;
-	//this->User = User;
-	//this->PassWord = PassWord;
-	//this->DatabaseName = DBName;
 	lock.lock();
 	for (int i = 0; i < MaxConn; i++){
 		MYSQL *con = NULL;
@@ -90,7 +85,7 @@ void connection_pool::DestroyPool(){
 	}
 	lock.unlock();
 }
-//当前空闲的连接数
+
 connectionRAII::connectionRAII(MYSQL **SQL, connection_pool *connPool){
 	*SQL = connPool->GetConnection();
 	conRAII = *SQL;

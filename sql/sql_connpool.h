@@ -31,12 +31,6 @@ private:
 	locker lock;
 	list<MYSQL *> connList; //连接池
 	sem reserve;
-
-	//string url;			 //主机地址
-	//int Port;		 //数据库端口号
-	//string User;		 //登陆数据库用户名
-	//string PassWord;	 //登陆数据库密码
-	//string DatabaseName; //使用数据库名
 };
 
 class connectionRAII{
