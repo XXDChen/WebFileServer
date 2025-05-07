@@ -25,7 +25,7 @@ class http_conn{
 public:
     static int m_epollfd;   //所有socket事件注册到同一个epfd上
     static int m_user_count;
-    static const int READ_BUFSIZE = 1024 * 4; //* 1024;
+    static const int READ_BUFSIZE = 1024 * 4;
     static const int WRITE_BUFSIZE = 1024;
     static const int FILENAME_LEN = 200;
     MYSQL *mysql;
@@ -38,18 +38,16 @@ public:
     //报文解析的结果
     enum HTTP_CODE {NO_REQUEST, GET_REQUEST, BAD_REQUEST, NO_RESOURCE, FORBIDDEN_REQUEST, FILE_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION};
     http_conn(){}
-    ~http_conn(){
-        //if(m_readbuf != nullptr) {
-        //    delete[] m_readbuf;
-        //    m_readbuf = nullptr;
-        //}
-    }
+    ~http_conn(){}
     void process();     //处理客户端请求
     void init(int sockfd, sockaddr_in &addr);   //初始化连接
     void close_conn();    //关闭连接
     bool read();    //非阻塞读
     bool write();   //非阻塞写、
     void initmysql_result(connection_pool *connPool);
+    sockaddr_in *get_address(){
+        return &m_address;
+    }
 
 private:
     int m_sockfd;

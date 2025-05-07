@@ -12,6 +12,7 @@
 #include"http_conn.h"
 #include"lst_timer.h"
 #include"./sql/sql_connpool.h"
+#include"./log/log.h"
 
 #define MAX_FD 65535
 #define MAX_EVENTUMBER 10000
@@ -49,6 +50,8 @@ int main (int argc, char* argv[]){
         printf("usage: %s port_number\n",basename(argv[0]));
         exit(-1);
     }
+    //异步日志
+    Log::get_instance()->init("ServerLog", 2000, 800000, 8);
     int port = atoi(argv[1]);
     //捕捉SIGPIPE信号
     addsig(SIGPIPE, SIG_IGN);
@@ -56,12 +59,7 @@ int main (int argc, char* argv[]){
     connection_pool *connPool = connection_pool::GetInstance();
     connPool->init("localhost", "cxd", "998329", "webdb", 3306, 8);
     //创建线程池
-    threadpool<http_conn> * pool = NULL;
-    try{
-        pool = new threadpool<http_conn>;
-    } catch(...){       //捕获所有异常
-        return 1;
-    }
+    threadpool<http_conn> * pool = new threadpool<http_conn>;
     //数组保存客户端信息
     http_conn* users = new http_conn[MAX_FD];
     users->initmysql_result(connPool);
@@ -94,7 +92,7 @@ int main (int argc, char* argv[]){
     while(!stop_server){
         int num = epoll_wait(epfd, events, MAX_EVENTUMBER, -1);
         if(num < 0 && errno != EINTR){
-            printf("epoll failure\n");
+            Log::get_instance()->write_log("%s", "epoll failure");
             break;
         }
         for(int i = 0; i < num; i++){
@@ -139,7 +137,7 @@ int main (int argc, char* argv[]){
                 }
             } else if(events[i].events & EPOLLIN){
                 util_timer *timer = users_timer[sockfd].timer;
-                printf("---触发EPOLL---\n");
+                Log::get_instance()->write_log("Recv the client(%s) data", inet_ntoa(users[sockfd].get_address()->sin_addr));
                 if(users[sockfd].read()){   //一次性读完
                     pool->append(users + sockfd);
                     if (timer){
@@ -148,7 +146,6 @@ int main (int argc, char* argv[]){
                         timer_lst.adjust_timer(timer);
                     }
                 } else{
-                    printf("读出错，关闭连接\n");
                     timer->cb_func(users + sockfd);
                     if (timer){
                         timer_lst.del_timer(timer);

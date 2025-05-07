@@ -25,9 +25,6 @@ public:
 
 private:
 	unsigned int MaxConn;  //最大连接数
-	unsigned int CurConn;  //已使用的连接数
-	unsigned int FreeConn; //空闲的连接数
-
 	locker lock;
 	list<MYSQL *> connList; //连接池
 	sem reserve;

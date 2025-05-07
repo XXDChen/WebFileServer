@@ -98,9 +98,6 @@ public:
         if (!head){
             return;
         }
-        printf( "timer tick\n" );
-        //LOG_INFO("%s", "timer tick");
-        //Log::get_instance()->flush();
         time_t cur = time(NULL);    //获取当前系统时间
         util_timer *tmp = head;
         while (tmp){

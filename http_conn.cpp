@@ -1,4 +1,5 @@
 #include"http_conn.h"
+#include "./log/log.h"
 // HTTP响应状态信息
 #define BUF_SIZE 65536
 const char* ok_200_title = "OK";
@@ -14,25 +15,16 @@ const char* error_500_form = "There was an unusual problem serving the requested
 const char* doc_root = "/home/ubuntu/cxd/webserver/resources";  //资源根目录
 int http_conn::m_epollfd = -1;
 int http_conn::m_user_count = 0;
-//将表中的用户名和密码放入map
+
 map<string, string> users;
 locker m_lock;
 
 void http_conn::initmysql_result(connection_pool *connPool){
-    //先从连接池中取一个连接
     MYSQL *mysql = NULL;
     connectionRAII mysqlcon(&mysql, connPool);
-    //在user表中检索username，passwd数据，浏览器端输入
-    if (mysql_query(mysql, "SELECT username,passwd FROM user")){
-        //LOG_ERROR("SELECT error:%s\n", mysql_error(mysql));
-    }
-    //从表中检索完整的结果集
+    mysql_query(mysql, "SELECT username,passwd FROM user");
+    //用户名和密码，存入map中
     MYSQL_RES *result = mysql_store_result(mysql);
-    //返回结果集中的列数
-    int num_fields = mysql_num_fields(result);
-    //返回所有字段结构的数组
-    MYSQL_FIELD *fields = mysql_fetch_fields(result);
-    //从结果集中获取下一行，将对应的用户名和密码，存入map中
     while (MYSQL_ROW row = mysql_fetch_row(result)){
         string temp1(row[0]);
         string temp2(row[1]);
@@ -85,7 +77,6 @@ void http_conn::init(){
     tmplen = 0;
     m_offset = 0;
     m_len = 0;
-    //m_readbuf = new char[READ_BUFSIZE]();  // 使用new分配内存并初始化为0
     bzero(m_readbuf, READ_BUFSIZE);
     bzero(m_writebuf, WRITE_BUFSIZE);
     bzero(m_realfile, FILENAME_LEN);
@@ -249,7 +240,6 @@ http_conn::HTTP_CODE http_conn::parse_headers(char* text){
         text += 15;
         text += strspn(text, " \t");
         m_content_length = atoi(text);
-        //m_content = new char[content_length+1]();
     } else if(strncasecmp(text, "Host:", 5) == 0){
         text += 5;
         text += strspn(text, " \t");
@@ -427,7 +417,6 @@ http_conn::HTTP_CODE http_conn::do_request(){   //处理请求
     if(S_ISDIR(m_filestat.st_mode)){    //判断是否是目录
         return BAD_REQUEST;
     }
-    printf("打开文件描述符\n");
     m_fd = open(m_realfile, O_RDONLY);
     m_len = m_filestat.st_size;
     return FILE_REQUEST;
@@ -509,7 +498,7 @@ bool http_conn::write(){
             }
         }
         if(byte_to_send <= 0 && m_len<= 0){  //所有数据发送完毕
-            printf("发送完毕\n");
+            Log::get_instance()->write_log("Send to the client(%s)", inet_ntoa(m_address.sin_addr));
             if(m_fd != -1){
                 close(m_fd);
                 m_fd = -1;
@@ -624,7 +613,7 @@ void http_conn::process(){     //线程池工作线程调用，处理HTTP请求
     //生成响应
     bool write_ret = process_write(read_ret);
     if(!write_ret){
-        printf("fd %d 关闭连接\n", m_sockfd);
+    //printf("fd %d 关闭连接\n", m_sockfd);
        close_conn();
     }
     modfd(m_epollfd, m_sockfd, EPOLLOUT);
